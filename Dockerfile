@@ -1,47 +1,41 @@
+# ✅ Use Microsoft’s Playwright image (Ubuntu Jammy + all browser deps preinstalled)
 FROM mcr.microsoft.com/playwright:v1.53.0-jammy
 
-USER root
-WORKDIR /app
+# ---- base env (avoid tzdata prompts, make globals resolvable in Code node) ----
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Etc/UTC \
+    NODE_PATH=/usr/local/lib/node_modules \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PLAYWRIGHT_HEADLESS=1 \
+    NPM_CONFIG_FUND=false \
+    NPM_CONFIG_AUDIT=false
 
-# make global node modules visible to n8n Code nodes
-ENV NODE_PATH=/usr/local/lib/node_modules
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-ENV PLAYWRIGHT_HEADLESS=1
-ENV NPM_CONFIG_FUND=false
-ENV NPM_CONFIG_AUDIT=false
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=Etc/UTC
+# ---- minimal OS utils + fonts (nice screenshots) ----
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      dumb-init ca-certificates \
+      fonts-noto fonts-noto-cjk fonts-noto-color-emoji \
+  && rm -rf /var/lib/apt/lists/*
 
-# non-interactive tzdata + runtime tools
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
- && echo $TZ > /etc/timezone \
- && apt-get update \
- && apt-get install -y --no-install-recommends \
-      git tzdata dumb-init \
- && rm -rf /var/lib/apt/lists/* \
- && unset DEBIAN_FRONTEND
-
-# install n8n
-RUN npm install -g n8n
-
-# optional extras
+# ---- n8n + Playwright + helpers (global) ----
+# n8n pinned to your working version; Playwright pinned to match base image
 RUN npm install -g \
+      n8n@1.105.4 \
+      playwright@1.53.0 \
       playwright-extra \
       puppeteer-extra-plugin-stealth \
       fingerprint-injector \
       fingerprint-generator \
       user-agents \
- && npm cache clean --force
+  && npm cache clean --force
 
-# optional community nodes (ignore pnpm-only postinstall)
-ENV N8N_COMMUNITY_PACKAGES="n8n-nodes-playwright,@couleetech/n8n-nodes-playwright-api"
-RUN npm install -g --ignore-scripts n8n-nodes-playwright @couleetech/n8n-nodes-playwright-api || true
-
+# ---- app layout ----
+WORKDIR /app
 COPY ./entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && chown 1001:0 /entrypoint.sh
 
-# drop privileges; pwuser exists in the Playwright base image
-USER pwuser
+# The Playwright image runs as user `pwuser` (uid 1001) by default — perfect for Heroku
+USER 1001
 
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+# Heroku will send SIGTERM; dumb-init handles it cleanly
+ENTRYPOINT ["/usr/bin/dumb-init","--"]
 CMD ["/entrypoint.sh"]
