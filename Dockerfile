@@ -14,6 +14,9 @@ ENV NODE_PATH=/usr/local/lib/node_modules
 ENV NPM_CONFIG_FUND=false
 ENV NPM_CONFIG_AUDIT=false
 
+# Pin Playwright so browser build versions match at runtime
+ARG PLAYWRIGHT_VERSION=1.48.0
+
 # ---------- Alpine system libs for Playwright/Chromium ----------
 RUN apk add --no-cache \
     bash \
@@ -38,9 +41,11 @@ RUN apk add --no-cache \
     font-noto-cjk \
     font-noto-emoji
 
-# ---------- Playwright + Chromium (no --with-deps on Alpine) ----------
-RUN npm install -g playwright \
- && npx playwright install chromium
+# ---------- Playwright + Chromium (pinned) ----------
+# Remove any leftover browser cache to avoid mismatched folders
+RUN rm -rf /ms-playwright \
+ && npm install -g playwright@${PLAYWRIGHT_VERSION} \
+ && npx playwright@${PLAYWRIGHT_VERSION} install chromium
 
 # ---------- Stealth & helpers (real packages only) ----------
 RUN npm install -g \
@@ -52,8 +57,8 @@ RUN npm install -g \
  && npm cache clean --force
 
 # ---------- (Optional) community Playwright nodes in n8n UI ----------
-# ENV N8N_COMMUNITY_PACKAGES="n8n-nodes-playwright,@couleetech/n8n-nodes-playwright-api"
-# RUN npm install -g n8n-nodes-playwright @couleetech/n8n-nodes-playwright-api
+ENV N8N_COMMUNITY_PACKAGES="n8n-nodes-playwright,@couleetech/n8n-nodes-playwright-api"
+RUN npm install -g n8n-nodes-playwright @couleetech/n8n-nodes-playwright-api
 
 # Keep your entrypoint script
 COPY ./entrypoint.sh /entrypoint.sh
