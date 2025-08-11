@@ -15,9 +15,10 @@ ENV NPM_CONFIG_FUND=false
 ENV NPM_CONFIG_AUDIT=false
 
 # Pin Playwright so browser build versions match at runtime
-ARG PLAYWRIGHT_VERSION=1.48.0
+ARG PLAYWRIGHT_VERSION=1.53.0
 
 # ---------- Alpine system libs for Playwright/Chromium ----------
+# (Added: dbus-libs, atk, at-spi2-core, alsa-lib, libxfixes, libxdamage)
 RUN apk add --no-cache \
     bash \
     ca-certificates \
@@ -30,12 +31,19 @@ RUN apk add --no-cache \
     libxkbcommon \
     mesa \
     eudev-libs \
+    libdrm \
     libxcomposite \
     libxrandr \
     libxi \
     libxrender \
     libxtst \
     libxshmfence \
+    libxfixes \
+    libxdamage \
+    dbus-libs \
+    atk \
+    at-spi2-core \
+    alsa-lib \
     ttf-freefont \
     font-noto \
     font-noto-cjk \
@@ -44,9 +52,9 @@ RUN apk add --no-cache \
 # ---------- Playwright + Chromium (pinned) ----------
 # Clean any old cache so we don’t keep stale browser folders
 RUN rm -rf /ms-playwright \
- && npm install -g playwright@1.53.0 \
- && npx playwright@1.53.0 install chromium
- 
+ && npm install -g playwright@${PLAYWRIGHT_VERSION} \
+ && npx playwright@${PLAYWRIGHT_VERSION} install chromium
+
 # ---------- Stealth & helpers (real packages only) ----------
 RUN npm install -g \
       playwright-extra \
@@ -58,6 +66,7 @@ RUN npm install -g \
 
 # ---------- (Optional) community Playwright nodes in n8n UI ----------
 ENV N8N_COMMUNITY_PACKAGES="n8n-nodes-playwright,@couleetech/n8n-nodes-playwright-api"
+# Use --ignore-scripts to bypass only-allow/pnpm checks these repos enable
 RUN npm install -g --ignore-scripts n8n-nodes-playwright @couleetech/n8n-nodes-playwright-api
 
 # Keep your entrypoint script
