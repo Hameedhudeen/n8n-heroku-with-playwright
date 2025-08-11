@@ -1,80 +1,50 @@
-FROM n8nio/n8n:latest
+# Debian/Ubuntu base with Playwright + Chromium/Firefox/WebKit preinstalled
+# Pick a tag that matches the Playwright version you want
+FROM mcr.microsoft.com/playwright:v1.53.0-jammy
 
-# ---------- run installs as root ----------
+# ---- run installs as root ----
 USER root
+WORKDIR /app
 
-# Keep original working dir & entrypoint
-WORKDIR /home/node/packages/cli
-ENTRYPOINT []
-
-# ---------- Playwright/browser config ----------
+# Make global node modules visible in n8n Code nodes
+ENV NODE_PATH=/usr/local/lib/node_modules
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PLAYWRIGHT_HEADLESS=1
-ENV NODE_PATH=/usr/local/lib/node_modules
 ENV NPM_CONFIG_FUND=false
 ENV NPM_CONFIG_AUDIT=false
 
-# Pin Playwright so browser build versions match at runtime
-ARG PLAYWRIGHT_VERSION=1.53.0
+# n8n needs git (for community packages) and tzdata (optional)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git tzdata dumb-init \
+ && rm -rf /var/lib/apt/lists/*
 
-# ---------- Alpine system libs for Playwright/Chromium ----------
-# (Added: dbus-libs, atk, at-spi2-core, alsa-lib, libxfixes, libxdamage)
-RUN apk add --no-cache \
-    bash \
-    ca-certificates \
-    curl \
-    nss \
-    freetype \
-    harfbuzz \
-    libstdc++ \
-    libgcc \
-    libxkbcommon \
-    mesa \
-    eudev-libs \
-    libdrm \
-    libxcomposite \
-    libxrandr \
-    libxi \
-    libxrender \
-    libxtst \
-    libxshmfence \
-    libxfixes \
-    libxdamage \
-    dbus-libs \
-    atk \
-    at-spi2-core \
-    alsa-lib \
-    ttf-freefont \
-    font-noto \
-    font-noto-cjk \
-    font-noto-emoji
+# Install n8n from npm (Debian base; no musl issues)
+# Pin if you want a specific n8n version, e.g. n8n@1.105.4
+RUN npm install -g n8n
 
-# ---------- Playwright + Chromium (pinned) ----------
-# Clean any old cache so we don’t keep stale browser folders
-RUN rm -rf /ms-playwright \
- && npm install -g playwright@${PLAYWRIGHT_VERSION} \
- && npx playwright@${PLAYWRIGHT_VERSION} install chromium
-
-# ---------- Stealth & helpers (real packages only) ----------
+# Optional: stealth & helpers (only real packages; nothing deprecated/renamed)
 RUN npm install -g \
       playwright-extra \
       puppeteer-extra-plugin-stealth \
       fingerprint-injector \
       fingerprint-generator \
       user-agents \
- && npm cache clean --force
+  && npm cache clean --force
 
-# ---------- (Optional) community Playwright nodes in n8n UI ----------
+# Optional: community Playwright nodes (skip postinstall that enforces pnpm)
 ENV N8N_COMMUNITY_PACKAGES="n8n-nodes-playwright,@couleetech/n8n-nodes-playwright-api"
-# Use --ignore-scripts to bypass only-allow/pnpm checks these repos enable
-RUN npm install -g --ignore-scripts n8n-nodes-playwright @couleetech/n8n-nodes-playwright-api
+RUN npm install -g --ignore-scripts n8n-nodes-playwright @couleetech/n8n-nodes-playwright-api || true
 
-# Keep your entrypoint script
+# Keep your existing entrypoint script from the repo
+# (it should export PORT and start n8n)
 COPY ./entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Back to node user for running n8n
-USER node
+# Drop privileges to a non-root user for runtime
+# The Playwright base image ships with user "pwuser"
+# We can reuse it or create "node". We'll use pwuser.
+USER pwuser
 
-# Heroku calls this; your script should start n8n and respect $PORT
+# Heroku will set $PORT; your script should honor it and run `n8n start`
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["/entrypoint.sh"]
