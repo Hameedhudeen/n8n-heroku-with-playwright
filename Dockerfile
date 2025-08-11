@@ -1,41 +1,40 @@
-# ✅ Use Microsoft’s Playwright image (Ubuntu Jammy + all browser deps preinstalled)
-FROM mcr.microsoft.com/playwright:v1.53.0-jammy
+# Playwright + browsers preinstalled (v1.54.2)
+FROM mcr.microsoft.com/playwright:v1.54.2-jammy
 
-# ---- base env (avoid tzdata prompts, make globals resolvable in Code node) ----
-ENV DEBIAN_FRONTEND=noninteractive \
-    TZ=Etc/UTC \
-    NODE_PATH=/usr/local/lib/node_modules \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    PLAYWRIGHT_HEADLESS=1 \
-    NPM_CONFIG_FUND=false \
-    NPM_CONFIG_AUDIT=false
+# ---- base setup ----
+USER root
+WORKDIR /app
 
-# ---- minimal OS utils + fonts (nice screenshots) ----
+# Keep tzdata non-interactive on Debian/Ubuntu
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
+# Make globally installed node modules resolvable by n8n Code node
+ENV NODE_PATH=/usr/local/lib/node_modules:/usr/lib/node_modules
+
+# Playwright runtime env
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV PLAYWRIGHT_HEADLESS=1
+
+# Quiet npm
+ENV NPM_CONFIG_FUND=false
+ENV NPM_CONFIG_AUDIT=false
+
+# Minimal extras: init, certs, tzdata, fonts (helpful for screenshots/PDFs)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      dumb-init ca-certificates \
+      dumb-init ca-certificates tzdata \
       fonts-noto fonts-noto-cjk fonts-noto-color-emoji \
   && rm -rf /var/lib/apt/lists/*
 
-# ---- n8n + Playwright + helpers (global) ----
-# n8n pinned to your working version; Playwright pinned to match base image
-RUN npm install -g \
-      n8n@1.105.4 \
-      playwright@1.53.0 \
-      playwright-extra \
-      puppeteer-extra-plugin-stealth \
-      fingerprint-injector \
-      fingerprint-generator \
-      user-agents \
+# ---- install n8n + matching Playwright (keep versions in lockstep) ----
+RUN npm i -g n8n@1.105.4 playwright@1.54.2 \
   && npm cache clean --force
 
-# ---- app layout ----
-WORKDIR /app
+# ---- your startup script ----
+# This script should export N8N_PORT=$PORT and N8N_HOST=0.0.0.0, then run `n8n start`
 COPY ./entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && chown 1001:0 /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# The Playwright image runs as user `pwuser` (uid 1001) by default — perfect for Heroku
-USER 1001
-
-# Heroku will send SIGTERM; dumb-init handles it cleanly
-ENTRYPOINT ["/usr/bin/dumb-init","--"]
+# Heroku-friendly init
+ENTRYPOINT ["dumb-init", "--"]
 CMD ["/entrypoint.sh"]
