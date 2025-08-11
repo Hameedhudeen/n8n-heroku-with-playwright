@@ -58,8 +58,7 @@ RUN npm install -g \
 
 # ---------- (Optional) community Playwright nodes in n8n UI ----------
 ENV N8N_COMMUNITY_PACKAGES="n8n-nodes-playwright,@couleetech/n8n-nodes-playwright-api"
-RUN npm install -g pnpm \
- && pnpm add -g n8n-nodes-playwright @couleetech/n8n-nodes-playwright-api
+RUN npm install -g --ignore-scripts n8n-nodes-playwright @couleetech/n8n-nodes-playwright-api
 
 # Keep your entrypoint script
 COPY ./entrypoint.sh /entrypoint.sh
