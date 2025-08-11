@@ -42,11 +42,11 @@ RUN apk add --no-cache \
     font-noto-emoji
 
 # ---------- Playwright + Chromium (pinned) ----------
-# Remove any leftover browser cache to avoid mismatched folders
+# Clean any old cache so we don’t keep stale browser folders
 RUN rm -rf /ms-playwright \
- && npm install -g playwright@${PLAYWRIGHT_VERSION} \
- && npx playwright@${PLAYWRIGHT_VERSION} install chromium
-
+ && npm install -g playwright@1.53.0 \
+ && npx playwright@1.53.0 install chromium
+ 
 # ---------- Stealth & helpers (real packages only) ----------
 RUN npm install -g \
       playwright-extra \
