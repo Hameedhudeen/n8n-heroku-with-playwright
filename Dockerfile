@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # ---- install n8n + matching Playwright (keep versions in lockstep) ----
-RUN npm i -g n8n@1.105.4 playwright@1.54.2 \
+RUN npm i -g n8n@2.2.4 playwright@1.54.2 \
   && npm cache clean --force
 
 # ---- your startup script ----
