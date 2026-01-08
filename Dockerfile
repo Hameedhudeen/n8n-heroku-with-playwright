@@ -23,10 +23,10 @@ ENV PLAYWRIGHT_HEADLESS=1
 ENV NPM_CONFIG_FUND=false
 ENV NPM_CONFIG_AUDIT=false
 
-# Enable community package (node) install feature
+# Enable community package (node) install feature (default is true, set explicitly)
 ENV N8N_COMMUNITY_PACKAGES_ENABLED=true
 
-# Allow Code node to import modules (tighten this later if you want)
+# Allow Code node to import modules (override in Heroku config vars if you want a tighter allowlist)
 ENV NODE_FUNCTION_ALLOW_BUILTIN=*
 ENV NODE_FUNCTION_ALLOW_EXTERNAL=*
 
@@ -34,7 +34,13 @@ ENV NODE_FUNCTION_ALLOW_EXTERNAL=*
 RUN apt-get update && apt-get install -y --no-install-recommends \
       dumb-init ca-certificates tzdata \
       fonts-noto fonts-noto-cjk fonts-noto-color-emoji \
+      curl ffmpeg \
   && rm -rf /var/lib/apt/lists/*
+
+# ---- install yt-dlp (static release binary) ----
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+  && chmod a+rx /usr/local/bin/yt-dlp \
+  && yt-dlp --version
 
 # ---- install n8n v2 + matching Playwright (keep versions in lockstep) ----
 RUN npm i -g n8n@2.2.4 playwright@1.54.2 \
@@ -43,16 +49,16 @@ RUN npm i -g n8n@2.2.4 playwright@1.54.2 \
 # Safety check: ensure Node >= 20.19 for n8n v2
 RUN node -v && node -e "const [M,m]=process.versions.node.split('.').map(Number); if (M<20 || (M===20 && m<19)) { console.error('Node too old for n8n v2 (need >=20.19)'); process.exit(1); }"
 
+# ---- optional runtime package install (ephemeral on Heroku) ----
+# NOTE: The previous inline heredoc approach can break Dockerfile parsing on some builders.
+# Add a file named `bootstrap.sh` to your repo (content shown below in chat), then COPY it.
+COPY ./bootstrap.sh /bootstrap.sh
+RUN chmod +x /bootstrap.sh
+
 # ---- your startup script ----
 # This script should export N8N_PORT=$PORT and N8N_HOST=0.0.0.0, then run `n8n start`
 COPY ./entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
-# ---- optional runtime package install (ephemeral on Heroku) ----
-# Set N8N_EXTRA_PACKAGES to a space-separated list, e.g.:
-#   N8N_EXTRA_PACKAGES="axios lodash date-fns"
-COPY ./bootstrap.sh /bootstrap.sh
-RUN chmod +x /bootstrap.sh
 
 # Heroku-friendly init
 ENTRYPOINT ["dumb-init", "--"]
